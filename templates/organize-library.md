@@ -39,18 +39,13 @@ bash scripts/organize-library.sh scan
   bash scripts/organize-library.sh move-skill <dir-name> <group>
   ```
 
-### 3. Enable the group if not already active
-```bash
-bash scripts/toggle-commands.sh <group> on
-# or
-bash scripts/toggle-skills.sh <group> on
-```
-
-### 4. Confirm with a final scan
+### 3. Confirm with a final scan
 ```bash
 bash scripts/organize-library.sh scan
 ```
 Should report "0 unorganized items found".
 
-### 5. If no items found
+> **Note:** Groups are auto-enabled when registered. The `register-command-group` and `register-skill-group` commands automatically create symlinks in `.claude/` after creating the group directory.
+
+### 4. If no items found
 Report that everything is already organized and suggest using `/toggle-commands` or `/toggle-skills` to manage active groups.

@@ -11,6 +11,7 @@
 
 set -euo pipefail
 
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LIBRARY_CMD_DIR=".library/commands"
 LIBRARY_SKL_DIR=".library/skills"
 CLAUDE_CMD_DIR=".claude/commands"
@@ -159,8 +160,7 @@ move_skill() {
 }
 
 # ─── Register Command Group ─────────────────────────────────────────────────
-# Creates the .library/commands/<name>/ directory.
-# Toggle scripts auto-discover groups from the directory structure.
+# Creates the .library/commands/<name>/ directory and auto-enables the group.
 register_command_group() {
   local name="$1"
   local dir="$LIBRARY_CMD_DIR/$name"
@@ -171,11 +171,13 @@ register_command_group() {
     mkdir -p "$dir"
     echo "Created group '$name' at $dir"
   fi
+
+  # Auto-enable: symlink any files in the group into .claude/commands/
+  bash "$REPO_ROOT/scripts/toggle-commands.sh" "$name" on
 }
 
 # ─── Register Skill Group ───────────────────────────────────────────────────
-# Creates the .library/skills/<name>/ directory.
-# Toggle scripts auto-discover groups from the directory structure.
+# Creates the .library/skills/<name>/ directory and auto-enables the group.
 register_skill_group() {
   local name="$1"
   local dir="$LIBRARY_SKL_DIR/$name"
@@ -186,6 +188,9 @@ register_skill_group() {
     mkdir -p "$dir"
     echo "Created group '$name' at $dir"
   fi
+
+  # Auto-enable: symlink any skills in the group into .claude/skills/
+  bash "$REPO_ROOT/scripts/toggle-skills.sh" "$name" on
 }
 
 # ─── Usage ───────────────────────────────────────────────────────────────────

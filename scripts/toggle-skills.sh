@@ -33,11 +33,17 @@ discover_groups() {
 }
 
 group_dir() {
-  local dir="$LIBRARY_DIR/$1"
+  local name="$1"
+  # Reject path traversal: slashes, ".." sequences, or names starting with "."
+  if [[ "$name" == */* || "$name" == *..* || "$name" == .* ]]; then
+    echo "Invalid group name: $name" >&2
+    return 1
+  fi
+  local dir="$LIBRARY_DIR/$name"
   if [[ -d "$dir" ]]; then
     echo "$dir"
   else
-    echo "Unknown group: $1" >&2
+    echo "Unknown group: $name" >&2
     return 1
   fi
 }
