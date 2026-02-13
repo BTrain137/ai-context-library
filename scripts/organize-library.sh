@@ -16,8 +16,6 @@ LIBRARY_SKL_DIR=".library/skills"
 CLAUDE_CMD_DIR=".claude/commands"
 CLAUDE_SKL_DIR=".claude/skills"
 
-TOGGLE_CMD_SCRIPT="scripts/toggle-commands.sh"
-TOGGLE_SKL_SCRIPT="scripts/toggle-skills.sh"
 
 # ─── Scan ────────────────────────────────────────────────────────────────────
 # Finds real (non-symlink) files/dirs in .claude/commands/ and .claude/skills/
@@ -161,63 +159,33 @@ move_skill() {
 }
 
 # ─── Register Command Group ─────────────────────────────────────────────────
-# Creates the .library/commands/<name>/ directory and adds the group to
-# the ALL_GROUPS array and group_dir() case in toggle-commands.sh.
+# Creates the .library/commands/<name>/ directory.
+# Toggle scripts auto-discover groups from the directory structure.
 register_command_group() {
   local name="$1"
   local dir="$LIBRARY_CMD_DIR/$name"
 
   if [[ -d "$dir" ]]; then
-    echo "Group directory already exists: $dir"
+    echo "Group '$name' already exists"
   else
     mkdir -p "$dir"
-    echo "Created: $dir"
+    echo "Created group '$name' at $dir"
   fi
-
-  # Check if group already registered (look for it in the group_dir case)
-  if grep -q "^    $name)" "$TOGGLE_CMD_SCRIPT" 2>/dev/null; then
-    echo "Group '$name' already registered in toggle-commands.sh"
-    return
-  fi
-
-  # Add to group_dir() case statement — insert before the wildcard case
-  sed -i '' "s|^\(    \*) .*echo.*\)|\    $name) echo \"\$LIBRARY_DIR/$name\" ;;\n\1|" "$TOGGLE_CMD_SCRIPT"
-
-  # Add to list_groups() loop — find the hardcoded group list and append
-  # This works with both "for group in a b c; do" and ALL_GROUPS array styles
-  echo ""
-  echo "Added '$name' to toggle-commands.sh"
-  echo "NOTE: You may need to manually add '$name' to the list_groups() loop"
-  echo "      in scripts/toggle-commands.sh if it uses a hardcoded group list."
 }
 
 # ─── Register Skill Group ───────────────────────────────────────────────────
-# Creates the .library/skills/<name>/ directory and adds the group to
-# the group_dir() case in toggle-skills.sh.
+# Creates the .library/skills/<name>/ directory.
+# Toggle scripts auto-discover groups from the directory structure.
 register_skill_group() {
   local name="$1"
   local dir="$LIBRARY_SKL_DIR/$name"
 
   if [[ -d "$dir" ]]; then
-    echo "Group directory already exists: $dir"
+    echo "Group '$name' already exists"
   else
     mkdir -p "$dir"
-    echo "Created: $dir"
+    echo "Created group '$name' at $dir"
   fi
-
-  # Check if group already registered
-  if grep -q "^    $name)" "$TOGGLE_SKL_SCRIPT" 2>/dev/null; then
-    echo "Group '$name' already registered in toggle-skills.sh"
-    return
-  fi
-
-  # Add to group_dir() case statement
-  sed -i '' "s|^\(    \*) .*echo.*\)|\    $name) echo \"\$LIBRARY_DIR/$name\" ;;\n\1|" "$TOGGLE_SKL_SCRIPT"
-
-  echo ""
-  echo "Added '$name' to toggle-skills.sh"
-  echo "NOTE: You may need to manually add '$name' to the list_groups() loop"
-  echo "      in scripts/toggle-skills.sh if it uses a hardcoded group list."
 }
 
 # ─── Usage ───────────────────────────────────────────────────────────────────

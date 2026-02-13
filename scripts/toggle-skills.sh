@@ -18,21 +18,28 @@ GITIGNORE="$REPO_ROOT/.gitignore"
 
 mkdir -p "$SKILLS_DIR"
 
-# ─── Group Registry ─── Add your groups here ──────────────────────────────────
-# Each group maps to a subdirectory under .library/skills/
-# Example: ALL_GROUPS=(marketing devops)
-ALL_GROUPS=()
+# ─── Group Discovery ─────────────────────────────────────────────────────────
+# Groups are auto-discovered from subdirectories of .library/skills/
+discover_groups() {
+  local groups=()
+  for d in "$LIBRARY_DIR"/*/; do
+    [[ -d "$d" ]] || continue
+    local name
+    name="$(basename "$d")"
+    [[ "$name" == "._"* ]] && continue
+    groups+=("$name")
+  done
+  echo "${groups[@]}"
+}
 
-# Map group name to library subdirectory
 group_dir() {
-  case "$1" in
-    # Example: uncomment and adapt when you add skill groups
-    # marketing) echo "$LIBRARY_DIR/marketing" ;;
-    *)
-      echo "Unknown group: $1" >&2
-      return 1
-      ;;
-  esac
+  local dir="$LIBRARY_DIR/$1"
+  if [[ -d "$dir" ]]; then
+    echo "$dir"
+  else
+    echo "Unknown group: $1" >&2
+    return 1
+  fi
 }
 
 # ─── Gitignore ─────────────────────────────────────────────────────────────────
@@ -127,10 +134,12 @@ count_total() {
 list_groups() {
   echo ""
   echo "=== Skill Library ==="
-  if [ ${#ALL_GROUPS[@]} -eq 0 ]; then
-    echo "  (no skill groups registered — add groups to ALL_GROUPS in this script)"
+  local groups
+  groups=$(discover_groups)
+  if [ -z "$groups" ]; then
+    echo "  (no skill groups found — create directories under .library/skills/)"
   else
-    for group in "${ALL_GROUPS[@]}"; do
+    for group in $groups; do
       local active total
       active=$(count_active "$group")
       total=$(count_total "$group")
@@ -156,21 +165,13 @@ fi
 if [ -z "$ACTION" ]; then
   echo "Usage: bash scripts/toggle-skills.sh <group|list> <on|off>"
   echo ""
-  if [ ${#ALL_GROUPS[@]} -gt 0 ]; then
-    echo "Available groups: ${ALL_GROUPS[*]}"
-  else
-    echo "No groups registered yet. Add groups to ALL_GROUPS in this script."
-  fi
+  echo "Available groups: $(discover_groups)"
   exit 1
 fi
 
 if ! group_dir "$GROUP" > /dev/null 2>&1; then
   echo "Unknown group: $GROUP"
-  if [ ${#ALL_GROUPS[@]} -gt 0 ]; then
-    echo "Available groups: ${ALL_GROUPS[*]}"
-  else
-    echo "No groups registered yet. Add groups to ALL_GROUPS in this script."
-  fi
+  echo "Available groups: $(discover_groups)"
   exit 1
 fi
 

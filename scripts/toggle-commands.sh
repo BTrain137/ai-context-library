@@ -18,20 +18,28 @@ GITIGNORE="$REPO_ROOT/.gitignore"
 
 mkdir -p "$COMMANDS_DIR"
 
-# ─── Group Registry ─── Add your groups here ──────────────────────────────────
-# Each group maps to a subdirectory under .library/commands/
-# The "project" group holds toggle/organize commands and should always be enabled.
-ALL_GROUPS=(project)
+# ─── Group Discovery ─────────────────────────────────────────────────────────
+# Groups are auto-discovered from subdirectories of .library/commands/
+discover_groups() {
+  local groups=()
+  for d in "$LIBRARY_DIR"/*/; do
+    [[ -d "$d" ]] || continue
+    local name
+    name="$(basename "$d")"
+    [[ "$name" == "._"* ]] && continue
+    groups+=("$name")
+  done
+  echo "${groups[@]}"
+}
 
-# Map group name to library subdirectory
 group_dir() {
-  case "$1" in
-    project) echo "$LIBRARY_DIR/project" ;;
-    *)
-      echo "Unknown group: $1" >&2
-      return 1
-      ;;
-  esac
+  local dir="$LIBRARY_DIR/$1"
+  if [[ -d "$dir" ]]; then
+    echo "$dir"
+  else
+    echo "Unknown group: $1" >&2
+    return 1
+  fi
 }
 
 # ─── Gitignore ─────────────────────────────────────────────────────────────────
@@ -123,7 +131,7 @@ count_total() {
 list_groups() {
   echo ""
   echo "=== Command Library ==="
-  for group in "${ALL_GROUPS[@]}"; do
+  for group in $(discover_groups); do
     local active total
     active=$(count_active "$group")
     total=$(count_total "$group")
@@ -148,13 +156,13 @@ fi
 if [ -z "$ACTION" ]; then
   echo "Usage: bash scripts/toggle-commands.sh <group|list> <on|off>"
   echo ""
-  echo "Available groups: ${ALL_GROUPS[*]}"
+  echo "Available groups: $(discover_groups)"
   exit 1
 fi
 
 if ! group_dir "$GROUP" > /dev/null 2>&1; then
   echo "Unknown group: $GROUP"
-  echo "Available groups: ${ALL_GROUPS[*]}"
+  echo "Available groups: $(discover_groups)"
   exit 1
 fi
 
