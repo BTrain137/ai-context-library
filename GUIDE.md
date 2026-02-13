@@ -15,7 +15,7 @@ When working with AI coding agents (Claude Code, Cursor, etc.), you accumulate a
 
 These all live in directories the AI agent watches (e.g., `.claude/commands/` and `.claude/skills/`). The issues:
 
-1. **Context window bloat** -- Every command/skill description is loaded into the AI's context. 40+ BMAD commands + 15 speckit commands + 25 marketing skills = massive token overhead, even when you only need a few
+1. **Context window bloat** -- Every command/skill description is loaded into the AI's context. Dozens of commands + skills = massive token overhead, even when you only need a few
 2. **Git noise** -- Toggling commands on/off by moving files creates constant diffs
 3. **Disorganization** -- Flat directories with 80+ files become unmanageable
 4. **No grouping** -- Can't enable "all marketing skills" or "all speckit commands" with one action
@@ -29,21 +29,18 @@ These all live in directories the AI agent watches (e.g., `.claude/commands/` an
 ```
 .library/                    ← Committed to git (source of truth)
 ├── commands/
-│   ├── bmad/        (41 commands)
-│   ├── speckit/     (15 commands)
-│   ├── project/     (toggle commands - always on)
-│   └── other/       (PR commands, misc)
+│   ├── project/     (toggle commands — always on)
+│   └── my-group/    (your command group)
 └── skills/
-    └── marketing/   (25 skills)
+    └── my-group/    (your skill group)
 
 .claude/commands/            ← Gitignored (symlinks only)
-├── toggle-bmad.md → ../../.library/commands/project/toggle-bmad.md
-├── toggle-speckit.md → ../../.library/commands/project/toggle-speckit.md
+├── toggle-commands.md → ../../.library/commands/project/toggle-commands.md
+├── toggle-skills.md → ../../.library/commands/project/toggle-skills.md
 └── (other active symlinks)
 
 .claude/skills/              ← Gitignored (symlinks only)
-├── seo-audit → ../../.library/skills/marketing/seo-audit
-├── copywriting → ../../.library/skills/marketing/copywriting
+├── my-skill → ../../.library/skills/my-group/my-skill
 └── (other active symlinks)
 ```
 
@@ -63,52 +60,31 @@ Commands are organized into **groups**. Each group is a subdirectory containing 
 
 ```
 .library/commands/
-├── bmad/                  # BMAD Method workflows (41 commands)
-│   ├── bmad-agent-bmad-master.md
-│   ├── bmad-bmm-create-prd.md
-│   ├── bmad-bmm-sprint-planning.md
-│   ├── bmad-brainstorming.md
-│   └── ... (41 total)
-│
-├── speckit/               # SpecKit planning & implementation (15 commands)
-│   ├── 00-speckit.constitution.md
-│   ├── 01-speckit.ideate.md
-│   ├── 02-speckit.specify.md
-│   ├── 11-speckit.implement.md
-│   └── ... (15 total)
-│
 ├── project/               # Project-level toggles (always active)
-│   ├── toggle-bmad.md
-│   ├── toggle-speckit.md
-│   └── toggle-skills.md
+│   ├── toggle-commands.md
+│   ├── toggle-skills.md
+│   └── organize-library.md
 │
-└── other/                 # Miscellaneous commands
-    ├── 12-create-pr-description.md
-    └── 14-create-pr.md
+└── my-group/              # Your command group (toggle on/off as needed)
+    ├── my-command.md
+    └── another-command.md
 ```
 
 ### Skills: `.library/skills/`
 
-Skills are organized into **groups** (currently `marketing`). Each skill is a **directory** with a `SKILL.md` and optional `references/`:
+Skills are organized into **groups**. Each skill is a **directory** with a `SKILL.md` and optional `references/`:
 
 ```
 .library/skills/
-└── marketing/             # Marketing skill group (25 skills)
-    ├── seo-audit/
+└── my-group/              # Your skill group
+    ├── my-skill/
     │   ├── SKILL.md
     │   └── references/
-    │       ├── ai-writing-detection.md
-    │       └── aeo-geo-patterns.md
-    ├── copywriting/
-    │   ├── SKILL.md
-    │   └── references/
-    │       ├── copy-frameworks.md
-    │       └── natural-transitions.md
-    ├── marketing-ideas/
-    │   ├── SKILL.md
-    │   └── references/
-    │       └── ideas-by-category.md
-    └── ... (25 total)
+    │       └── detailed-guide.md
+    └── another-skill/
+        ├── SKILL.md
+        └── references/
+            └── reference-material.md
 ```
 
 **Skill anatomy:**
@@ -127,12 +103,10 @@ Toggles command groups on/off.
 
 ```bash
 # Enable a group
-bash scripts/toggle-commands.sh bmad on
-bash scripts/toggle-commands.sh speckit on
+bash scripts/toggle-commands.sh my-group on
 
 # Disable a group
-bash scripts/toggle-commands.sh bmad off
-bash scripts/toggle-commands.sh speckit off
+bash scripts/toggle-commands.sh my-group off
 
 # List all groups and their status
 bash scripts/toggle-commands.sh list
@@ -141,10 +115,8 @@ bash scripts/toggle-commands.sh list
 **Output example:**
 ```
 === Command Library ===
-  bmad:      0 active / 41 total  [off]
-  speckit:   15 active / 15 total [ON]
-  project:   3 active / 3 total   [ON]
-  other:     2 active / 2 total   [ON]
+  project:     3 active / 3 total   [ON]
+  my-group:    10 active / 10 total [ON]
 ```
 
 ### `scripts/toggle-skills.sh`
@@ -152,11 +124,11 @@ bash scripts/toggle-commands.sh list
 Toggles skill groups on/off.
 
 ```bash
-# Enable marketing skills
-bash scripts/toggle-skills.sh marketing on
+# Enable a skill group
+bash scripts/toggle-skills.sh my-group on
 
-# Disable marketing skills
-bash scripts/toggle-skills.sh marketing off
+# Disable a skill group
+bash scripts/toggle-skills.sh my-group off
 
 # List status
 bash scripts/toggle-skills.sh list
@@ -165,7 +137,7 @@ bash scripts/toggle-skills.sh list
 **Output example:**
 ```
 === Skill Library ===
-  marketing:   25 active / 25 total  [ON]
+  my-group:    5 active / 5 total  [ON]
 ```
 
 ### `scripts/organize-library.sh`
@@ -177,10 +149,10 @@ Detects real (non-symlink) files dropped into `.claude/` and organizes them into
 bash scripts/organize-library.sh scan
 
 # Move a command into a group
-bash scripts/organize-library.sh move-command new-tool.md other
+bash scripts/organize-library.sh move-command new-tool.md my-group
 
 # Move a skill into a group
-bash scripts/organize-library.sh move-skill my-skill marketing
+bash scripts/organize-library.sh move-skill my-skill my-group
 
 # Register a brand new group
 bash scripts/organize-library.sh register-command-group my-group
@@ -207,28 +179,30 @@ bash scripts/organize-library.sh register-skill-group my-group
 
 For convenience, toggle commands are exposed as slash commands in the AI agent. These live in `.library/commands/project/` and are always active:
 
-### `/toggle-bmad [on|off|list]`
+### `/toggle-commands [on|off|list] <group>`
+
+Uses `templates/toggle-commands.md`. Instructs the AI to run the toggle-commands script with the user's arguments.
+
+### `/toggle-skills [on|off|list] <group>`
+
+Uses `templates/toggle-skills.md`. Same pattern for skill groups.
+
+### Example: group-specific toggle
+
+You can also create group-specific toggles for convenience. For example, `.library/commands/project/toggle-my-group.md`:
 
 ```markdown
 ---
-description: Toggle bmad commands on or off, or list current status.
+description: Toggle my-group commands on or off, or list current status.
 ---
 
-# Toggle BMAD Commands
+# Toggle My Group Commands
 
 Check the user's argument to determine the action:
-- "on": runs `bash scripts/toggle-commands.sh bmad on`
-- "off": runs `bash scripts/toggle-commands.sh bmad off`
+- "on": runs `bash scripts/toggle-commands.sh my-group on`
+- "off": runs `bash scripts/toggle-commands.sh my-group off`
 - "list" or empty: runs `bash scripts/toggle-commands.sh list`
 ```
-
-### `/toggle-speckit [on|off|list]`
-
-Same pattern for speckit commands.
-
-### `/toggle-skills [on|off|list]`
-
-Same pattern for skill groups.
 
 ### `/organize-library`
 
@@ -258,13 +232,13 @@ bash scripts/organize-library.sh scan
 bash scripts/organize-library.sh move-command new-workflow.md my-workflows
 
 # Move a skill directory into a group
-bash scripts/organize-library.sh move-skill seo-audit marketing
+bash scripts/organize-library.sh move-skill my-skill my-group
 
 # Register a new command group (creates dir + updates toggle-commands.sh)
-bash scripts/organize-library.sh register-command-group my-workflows
+bash scripts/organize-library.sh register-command-group my-group
 
 # Register a new skill group (creates dir + updates toggle-skills.sh)
-bash scripts/organize-library.sh register-skill-group devops
+bash scripts/organize-library.sh register-skill-group my-group
 ```
 
 ### How `scan` works
@@ -310,8 +284,10 @@ The template (`templates/organize-library-skill/`) provides an optional skill th
 ### Step 1: Create the directory structure
 
 ```bash
-mkdir -p .library/commands/{bmad,speckit,project,other}
-mkdir -p .library/skills/marketing
+# "project" is required (holds toggle/organize commands — always enabled)
+# Add your own groups alongside it
+mkdir -p .library/commands/{project,my-group}
+mkdir -p .library/skills/my-group
 ```
 
 ### Step 2: Move your commands into groups
@@ -319,11 +295,11 @@ mkdir -p .library/skills/marketing
 Move command files from `.claude/commands/` into the appropriate `.library/commands/<group>/` directory:
 
 ```bash
-# Example: move all bmad-* commands
-mv .claude/commands/bmad-*.md .library/commands/bmad/
+# Example: move commands by prefix or pattern
+mv .claude/commands/workflow-*.md .library/commands/my-group/
 
-# Example: move speckit commands
-mv .claude/commands/*speckit*.md .library/commands/speckit/
+# Example: move specific commands
+mv .claude/commands/create-pr.md .library/commands/my-group/
 ```
 
 ### Step 3: Move your skills into groups
@@ -331,10 +307,9 @@ mv .claude/commands/*speckit*.md .library/commands/speckit/
 Move skill directories from `.claude/skills/` into `.library/skills/<group>/`:
 
 ```bash
-# Example: move all marketing skills
-mv .claude/skills/seo-audit .library/skills/marketing/
-mv .claude/skills/copywriting .library/skills/marketing/
-# ... etc
+# Example: move skills into their group
+mv .claude/skills/my-skill .library/skills/my-group/
+mv .claude/skills/another-skill .library/skills/my-group/
 ```
 
 ### Step 4: Create the toggle scripts
@@ -350,42 +325,43 @@ See the reference implementations below for the full scripts.
 
 ### Step 5: Create toggle slash commands
 
-Create files in `.library/commands/project/` for each toggle:
-- `toggle-bmad.md`
-- `toggle-speckit.md`
-- `toggle-skills.md`
+Create files in `.library/commands/project/` for each toggle you need. Use the templates in `templates/` as starting points:
+- `toggle-commands.md` — generic command toggle (see `templates/toggle-commands.md`)
+- `toggle-skills.md` — generic skill toggle (see `templates/toggle-skills.md`)
 
-Each one instructs the AI to run the appropriate toggle script based on the user's argument.
+Each one instructs the AI to run the appropriate toggle script based on the user's argument. You can also create group-specific toggles (e.g., `toggle-my-group.md`) for convenience.
 
 ### Step 6: Update `.gitignore`
 
 ```gitignore
 # AI agent runtime directories (symlinks only, managed by toggle scripts)
-.claude/commands
-.claude/skills
-.claude/commands-disabled
+.claude/commands/
+.claude/skills/
+.DS_Store
+._*
 ```
+
+> **Note**: The `._*` pattern catches macOS resource fork files created on ExFAT/FAT32 drives. `.DS_Store` is a standard macOS exclusion. Both are optional but recommended.
 
 ### Step 7: Remove old files from git tracking
 
 If commands/skills were previously tracked by git:
 
 ```bash
-git rm -r --cached .claude/commands/ .claude/commands-disabled/ .claude/skills/ 2>/dev/null
+git rm -r --cached .claude/commands/ .claude/skills/ 2>/dev/null
 ```
 
 ### Step 8: Bootstrap the symlinks
 
-Enable the groups you want active:
+> **IMPORTANT**: Nothing works until you run this step. The `.claude/commands/` and `.claude/skills/` directories are empty after setup — you must run the toggle scripts at least once to create the symlinks. Always enable the `project` group first, since it contains the toggle slash commands.
 
 ```bash
-# Always-on project toggles
+# FIRST: Always-on project toggles (contains /toggle-commands, /toggle-skills, etc.)
 bash scripts/toggle-commands.sh project on
-bash scripts/toggle-commands.sh other on
 
-# Optional: enable what you need right now
-bash scripts/toggle-commands.sh speckit on
-bash scripts/toggle-skills.sh marketing on
+# THEN: Enable whatever else you need right now
+bash scripts/toggle-commands.sh my-group on
+bash scripts/toggle-skills.sh my-group on
 ```
 
 ### Step 9: Restart your AI agent
@@ -394,33 +370,88 @@ Run `/clear` or restart the AI agent session for changes to take effect.
 
 ---
 
+## Adapting for Your Project
+
+The scripts and directory structure in this repo ship with **minimal placeholder groups**. You should replace them with groups that reflect your project's domains and workflows.
+
+### How to choose group names
+
+Pick names based on your project's natural domains or workflows:
+
+- **Domain-based**: `api`, `frontend`, `devops`, `marketing`, `analytics`
+- **Workflow-based**: `sprint-planning`, `reviews`, `brainstorming`, `deployment`
+- **Tool-based**: `bmad`, `speckit`, `testing-tools`
+
+### The `project` group (always-on)
+
+Every project should have a `project` command group that stays enabled at all times. This group holds the toggle and organize slash commands — the tools you use to manage everything else. Without it, you'd need to run bash scripts manually instead of using `/toggle-commands` and `/toggle-skills`.
+
+### Before/after example
+
+The reference repo ships with a single `project` group. Here's how a real project might adapt it:
+
+**Reference repo (generic)**:
+```
+.library/commands/
+└── project/          (toggle + organize commands)
+```
+
+**Your project might look like**:
+```
+.library/commands/
+├── project/          (toggle + organize — always on)
+├── bmad/             (41 BMAD workflow commands)
+├── speckit/          (15 SpecKit planning commands)
+└── utilities/        (PR helpers, misc tools)
+
+.library/skills/
+├── marketing/        (25 marketing skills)
+└── devops/           (deployment + monitoring skills)
+```
+
+### Steps to add a new group
+
+1. Create the directory: `mkdir -p .library/commands/my-group/` (or `.library/skills/my-group/`)
+2. Add the group to `ALL_GROUPS` array in the toggle script
+3. Add a `case` entry in `group_dir()` in the toggle script
+4. (Optional) Create a `/toggle-my-group` slash command in `.library/commands/project/`
+5. Place your `.md` files (commands) or skill directories into the group
+6. Run `bash scripts/toggle-commands.sh my-group on` to enable
+
+Or use the organize script to automate steps 2-3:
+```bash
+bash scripts/organize-library.sh register-command-group my-group
+```
+
+---
+
 ## How It Reduces AI Context
 
 ### Before (everything loaded)
 
 ```
-Context window usage:
-  41 BMAD commands        ~12,000 tokens (descriptions)
-  15 SpecKit commands     ~4,500 tokens
-  25 Marketing skills     ~7,500 tokens (descriptions only)
+Context window usage (hypothetical 80-item setup):
+  40 Workflow commands     ~12,000 tokens (descriptions)
+  15 Planning commands     ~4,500 tokens
+  25 Domain skills         ~7,500 tokens (descriptions only)
   ─────────────────────
-  Total overhead:         ~24,000 tokens ALWAYS loaded
+  Total overhead:          ~24,000 tokens ALWAYS loaded
 ```
 
 ### After (toggle what you need)
 
 ```
-Context window usage (marketing day):
-  3 Project toggles       ~900 tokens
-  25 Marketing skills     ~7,500 tokens
+Context window usage (domain-focused day):
+  3 Project toggles        ~900 tokens
+  25 Domain skills         ~7,500 tokens
   ─────────────────────
-  Total overhead:         ~8,400 tokens (65% reduction)
+  Total overhead:          ~8,400 tokens (65% reduction)
 
 Context window usage (dev sprint):
-  3 Project toggles       ~900 tokens
-  15 SpecKit commands     ~4,500 tokens
+  3 Project toggles        ~900 tokens
+  15 Planning commands     ~4,500 tokens
   ─────────────────────
-  Total overhead:         ~5,400 tokens (77% reduction)
+  Total overhead:          ~5,400 tokens (77% reduction)
 ```
 
 The AI agent only sees what's symlinked. Disabled groups consume **zero tokens**.
@@ -437,19 +468,24 @@ The AI agent only sees what's symlinked. Disabled groups consume **zero tokens**
 
 set -uo pipefail
 
-COMMANDS_DIR=".claude/commands"
-LIBRARY_DIR=".library/commands"
+# ─── Resolve paths from repo root ─────────────────────────────────────────────
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+COMMANDS_DIR="$REPO_ROOT/.claude/commands"
+LIBRARY_DIR="$REPO_ROOT/.library/commands"
+GITIGNORE="$REPO_ROOT/.gitignore"
 
 mkdir -p "$COMMANDS_DIR"
 
-# Map group name to library subdirectory
+# ─── Group Registry ─── Add your groups here ──────────────────────────────────
+ALL_GROUPS=(project)
+
 group_dir() {
   case "$1" in
-    bmad)    echo "$LIBRARY_DIR/bmad" ;;
-    speckit) echo "$LIBRARY_DIR/speckit" ;;
     project) echo "$LIBRARY_DIR/project" ;;
-    other)   echo "$LIBRARY_DIR/other" ;;
-    *)       echo "" ;;
+    *)
+      echo "Unknown group: $1" >&2
+      return 1
+      ;;
   esac
 }
 
@@ -457,7 +493,7 @@ group_dir() {
 enable_group() {
   local group="$1"
   local src_dir
-  src_dir=$(group_dir "$group")
+  src_dir=$(group_dir "$group") || exit 1
   local count=0
 
   for f in "$src_dir"/*.md; do
@@ -465,7 +501,7 @@ enable_group() {
     local basename
     basename=$(basename "$f")
     local link="$COMMANDS_DIR/$basename"
-    local target="../../$src_dir/$basename"
+    local target="../../.library/commands/$group/$basename"
 
     [ -L "$link" ] && continue          # skip existing symlinks
     [ -e "$link" ] && rm "$link"        # remove conflicting files
@@ -479,20 +515,26 @@ enable_group() {
 # Remove symlinks that point into a library group
 disable_group() {
   local group="$1"
-  local src_dir
-  src_dir=$(group_dir "$group")
   local count=0
 
   for link in "$COMMANDS_DIR"/*.md; do
     [ -L "$link" ] || continue
     local target
     target=$(readlink "$link")
-    if [[ "$target" == *"$src_dir"* ]]; then
+    if [[ "$target" == *".library/commands/$group/"* ]]; then
       rm "$link"
       count=$((count + 1))
     fi
   done
   echo "Disabled $count $group commands (symlinks removed)"
+}
+
+# List uses ALL_GROUPS array instead of hardcoded loop
+list_groups() {
+  echo "=== Command Library ==="
+  for group in "${ALL_GROUPS[@]}"; do
+    # ... count active symlinks vs total files ...
+  done
 }
 ```
 
@@ -506,16 +548,26 @@ disable_group() {
 
 set -uo pipefail
 
-SKILLS_DIR=".claude/skills"
-LIBRARY_DIR=".library/skills"
+# ─── Resolve paths from repo root ─────────────────────────────────────────────
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+SKILLS_DIR="$REPO_ROOT/.claude/skills"
+LIBRARY_DIR="$REPO_ROOT/.library/skills"
+GITIGNORE="$REPO_ROOT/.gitignore"
 
 mkdir -p "$SKILLS_DIR"
 
-# Map group name to library subdirectory
+# ─── Group Registry ─── Add your groups here ──────────────────────────────────
+# Example: ALL_GROUPS=(marketing devops)
+ALL_GROUPS=()
+
 group_dir() {
   case "$1" in
-    marketing) echo "$LIBRARY_DIR/marketing" ;;
-    *)         echo "" ;;
+    # Example: uncomment and adapt when you add skill groups
+    # marketing) echo "$LIBRARY_DIR/marketing" ;;
+    *)
+      echo "Unknown group: $1" >&2
+      return 1
+      ;;
   esac
 }
 
@@ -523,7 +575,7 @@ group_dir() {
 enable_group() {
   local group="$1"
   local src_dir
-  src_dir=$(group_dir "$group")
+  src_dir=$(group_dir "$group") || exit 1
   local count=0
 
   for d in "$src_dir"/*/; do
@@ -531,7 +583,7 @@ enable_group() {
     local skill_name
     skill_name=$(basename "$d")
     local link="$SKILLS_DIR/$skill_name"
-    local target="../../$src_dir/$skill_name"
+    local target="../../.library/skills/$group/$skill_name"
 
     [ -L "$link" ] && continue
     [ -e "$link" ] && rm -rf "$link"
@@ -545,20 +597,26 @@ enable_group() {
 # Remove symlinks that point into a library group
 disable_group() {
   local group="$1"
-  local src_dir
-  src_dir=$(group_dir "$group")
   local count=0
 
   for link in "$SKILLS_DIR"/*/; do
     [ -L "${link%/}" ] || continue
     local target
     target=$(readlink "${link%/}")
-    if [[ "$target" == *"$src_dir"* ]]; then
+    if [[ "$target" == *".library/skills/$group/"* ]]; then
       rm "${link%/}"
       count=$((count + 1))
     fi
   done
   echo "Disabled $count $group skills (symlinks removed)"
+}
+
+# List uses ALL_GROUPS array instead of hardcoded loop
+list_groups() {
+  echo "=== Skill Library ==="
+  for group in "${ALL_GROUPS[@]}"; do
+    # ... count active symlinks vs total dirs ...
+  done
 }
 ```
 
@@ -646,7 +704,7 @@ bash scripts/organize-library.sh register-command-group my-group
 bash scripts/organize-library.sh register-skill-group my-group
 ```
 
-**Note**: The `register` commands update `group_dir()` automatically. You may still need to add the group to `list_groups()` manually if it uses a hardcoded loop.
+**Note**: The `register` commands update `group_dir()` automatically. You will also need to add the group to the `ALL_GROUPS` array in the toggle script for it to appear in `list`.
 
 ### Manual
 
@@ -654,22 +712,28 @@ bash scripts/organize-library.sh register-skill-group my-group
 
 1. Create the directory: `mkdir -p .library/commands/my-group/`
 2. Add your `.md` command files there
-3. Add a case to `group_dir()` in `toggle-commands.sh`:
+3. Add `my-group` to the `ALL_GROUPS` array in `toggle-commands.sh`:
+   ```bash
+   ALL_GROUPS=(project my-group)
+   ```
+4. Add a case to `group_dir()` in `toggle-commands.sh`:
    ```bash
    my-group) echo "$LIBRARY_DIR/my-group" ;;
    ```
-4. Add `my-group` to the `list_groups()` loop
 5. Optionally create a `/toggle-my-group` slash command in `.library/commands/project/`
 
 #### New skill group
 
 1. Create the directory: `mkdir -p .library/skills/my-group/`
 2. Add your skill directories (each with a `SKILL.md`)
-3. Add a case to `group_dir()` in `toggle-skills.sh`:
+3. Add `my-group` to the `ALL_GROUPS` array in `toggle-skills.sh`:
+   ```bash
+   ALL_GROUPS=(my-group)
+   ```
+4. Add a case to `group_dir()` in `toggle-skills.sh`:
    ```bash
    my-group) echo "$LIBRARY_DIR/my-group" ;;
    ```
-4. Add `my-group` to the `list_groups()` loop
 
 ---
 
@@ -720,16 +784,14 @@ This system evolved through several iterations:
 
 | Action | Command |
 |--------|---------|
-| Enable BMAD commands | `bash scripts/toggle-commands.sh bmad on` |
-| Disable BMAD commands | `bash scripts/toggle-commands.sh bmad off` |
-| Enable SpecKit commands | `bash scripts/toggle-commands.sh speckit on` |
-| Disable SpecKit commands | `bash scripts/toggle-commands.sh speckit off` |
-| Enable marketing skills | `bash scripts/toggle-skills.sh marketing on` |
-| Disable marketing skills | `bash scripts/toggle-skills.sh marketing off` |
+| Enable a command group | `bash scripts/toggle-commands.sh <group> on` |
+| Disable a command group | `bash scripts/toggle-commands.sh <group> off` |
+| Enable a skill group | `bash scripts/toggle-skills.sh <group> on` |
+| Disable a skill group | `bash scripts/toggle-skills.sh <group> off` |
 | List all statuses | `bash scripts/toggle-commands.sh list && bash scripts/toggle-skills.sh list` |
 | Scan for unorganized files | `bash scripts/organize-library.sh scan` |
-| Move command to group | `bash scripts/organize-library.sh move-command file.md group` |
-| Move skill to group | `bash scripts/organize-library.sh move-skill skill-name group` |
-| Register new command group | `bash scripts/organize-library.sh register-command-group name` |
-| Register new skill group | `bash scripts/organize-library.sh register-skill-group name` |
-| Via slash commands | `/toggle-bmad on`, `/toggle-speckit off`, `/toggle-skills on`, `/organize-library` |
+| Move command to group | `bash scripts/organize-library.sh move-command <file.md> <group>` |
+| Move skill to group | `bash scripts/organize-library.sh move-skill <skill-name> <group>` |
+| Register new command group | `bash scripts/organize-library.sh register-command-group <name>` |
+| Register new skill group | `bash scripts/organize-library.sh register-skill-group <name>` |
+| Via slash commands | `/toggle-commands on <group>`, `/toggle-skills on <group>`, `/organize-library` |

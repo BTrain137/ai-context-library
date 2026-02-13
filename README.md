@@ -51,12 +51,10 @@ Instead of dumping every command and skill into the AI's watched directories, yo
 ```
 .library/                    <-- git-tracked source of truth
 ├── commands/
-│   ├── bmad/        (41 commands)
-│   ├── speckit/     (15 commands)
-│   ├── project/     (toggles -- always on)
-│   └── other/       (misc utilities)
+│   ├── project/     (toggles + organize -- always on)
+│   └── my-group/    (your command group)
 └── skills/
-    └── marketing/   (25 skills)
+    └── my-group/    (your skill group)
 
 .claude/commands/            <-- gitignored, symlinks only
 .claude/skills/              <-- gitignored, symlinks only
@@ -70,6 +68,19 @@ scripts/
 Toggle a group on? Symlinks appear. Toggle it off? Symlinks vanish. Zero files move. Zero git diffs. The AI only loads what's linked.
 
 Drop a new command or skill into `.claude/`? The organize script detects it, moves it to `.library/`, and creates the symlink -- keeping the pattern intact without manual work.
+
+### Real world example
+
+```
+.library/                    <-- git-tracked source of truth
+├── commands/
+│   ├── bmad/        (41 commands)
+│   ├── speckit/     (15 commands)
+│   ├── project/     (toggles -- always on)
+│   └── other/       (misc utilities)
+└── skills/
+    └── marketing/   (25 skills)
+```
 
 ---
 
@@ -150,8 +161,10 @@ disable_group() {
 ### 3. Gitignore the runtime directories
 
 ```gitignore
-.claude/commands
-.claude/skills
+.claude/commands/
+.claude/skills/
+.DS_Store
+._*
 ```
 
 ### 4. Create slash commands for toggling
@@ -179,7 +192,15 @@ cp templates/organize-library.md your-project/.library/commands/project/
 
 Now when someone drops a new `.md` command or skill directory directly into `.claude/`, you can run `/organize-library` to detect it, pick a group, and file it properly.
 
-### 6. Restart and go
+### 6. Bootstrap the symlinks
+
+> **IMPORTANT**: Nothing works until you run the toggle scripts at least once. Always enable the `project` group first — it contains the toggle slash commands themselves.
+
+```bash
+bash scripts/toggle-commands.sh project on
+```
+
+### 7. Restart and go
 
 Run `/clear` or restart your session. Only the symlinked commands/skills load.
 
@@ -285,6 +306,21 @@ Some ideas if you want to build on this:
 3. The `.library/` pattern stores everything in a git-tracked directory and uses symlinks to activate only what you need
 4. Toggle scripts let you switch tool sets in seconds -- via slash commands inside the AI itself
 5. Result: 60-76% reduction in wasted context tokens, cleaner git history, and an AI that stays focused on what matters
+
+---
+
+## For LLM Implementers
+
+> **Implementing this with an AI agent?** Point your LLM at this repo and ask it to "implement the .library pattern in my project." Here's the checklist:
+>
+> 1. Create `.library/commands/project/` with at least toggle and organize commands
+> 2. Copy and adapt `scripts/toggle-commands.sh`, `scripts/toggle-skills.sh`, and `scripts/organize-library.sh` — replace the placeholder groups with your project's groups
+> 3. Create a project `CLAUDE.md` using `templates/CLAUDE.md` as a starting point
+> 4. Update `.gitignore` to exclude `.claude/commands/`, `.claude/skills/`, `.DS_Store`, and `._*`
+> 5. **Bootstrap symlinks**: run `bash scripts/toggle-commands.sh project on` — nothing works until this step
+> 6. Verify with `bash scripts/toggle-commands.sh list`
+>
+> The `templates/` directory has ready-made templates for the CLAUDE.md, toggle commands, toggle skills, organize command, and organize skill.
 
 ---
 

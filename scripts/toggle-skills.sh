@@ -4,38 +4,53 @@
 # Symlinks:       .claude/skills/<skill> → ../../.library/skills/<group>/<skill>
 #
 # Usage:
-#   bash scripts/toggle-skills.sh marketing on
-#   bash scripts/toggle-skills.sh marketing off
+#   bash scripts/toggle-skills.sh my-group on
+#   bash scripts/toggle-skills.sh my-group off
 #   bash scripts/toggle-skills.sh list
 
 set -uo pipefail
 
-SKILLS_DIR=".claude/skills"
-LIBRARY_DIR=".library/skills"
-GITIGNORE=".gitignore"
+# ─── Resolve paths from repo root ─────────────────────────────────────────────
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+SKILLS_DIR="$REPO_ROOT/.claude/skills"
+LIBRARY_DIR="$REPO_ROOT/.library/skills"
+GITIGNORE="$REPO_ROOT/.gitignore"
 
 mkdir -p "$SKILLS_DIR"
+
+# ─── Group Registry ─── Add your groups here ──────────────────────────────────
+# Each group maps to a subdirectory under .library/skills/
+# Example: ALL_GROUPS=(marketing devops)
+ALL_GROUPS=()
 
 # Map group name to library subdirectory
 group_dir() {
   case "$1" in
-    marketing) echo "$LIBRARY_DIR/marketing" ;;
-    *)         echo "" ;;
+    # Example: uncomment and adapt when you add skill groups
+    # marketing) echo "$LIBRARY_DIR/marketing" ;;
+    *)
+      echo "Unknown group: $1" >&2
+      return 1
+      ;;
   esac
 }
 
+# ─── Gitignore ─────────────────────────────────────────────────────────────────
 # Ensure .claude/skills is in .gitignore (permanently ignored)
 ensure_gitignore() {
-  if ! grep -qxF ".claude/skills" "$GITIGNORE" 2>/dev/null; then
-    echo ".claude/skills" >> "$GITIGNORE"
-  fi
+  for entry in ".claude/commands/" ".claude/skills/"; do
+    if ! grep -qxF "$entry" "$GITIGNORE" 2>/dev/null; then
+      echo "$entry" >> "$GITIGNORE"
+    fi
+  done
 }
 
+# ─── Enable ────────────────────────────────────────────────────────────────────
 # Create symlinks for all skill directories in a library group
 enable_group() {
   local group="$1"
   local src_dir
-  src_dir=$(group_dir "$group")
+  src_dir=$(group_dir "$group") || exit 1
   local count=0
 
   for d in "$src_dir"/*/; do
@@ -43,7 +58,7 @@ enable_group() {
     local skill_name
     skill_name=$(basename "$d")
     local link="$SKILLS_DIR/$skill_name"
-    local target="../../$src_dir/$skill_name"
+    local target="../../.library/skills/$group/$skill_name"
 
     # Skip if symlink already exists
     if [ -L "$link" ]; then
@@ -58,18 +73,19 @@ enable_group() {
   echo "Enabled $count $group skills (symlinked)"
 }
 
+# ─── Disable ───────────────────────────────────────────────────────────────────
 # Remove symlinks that point into a library group
 disable_group() {
   local group="$1"
   local src_dir
-  src_dir=$(group_dir "$group")
+  src_dir=$(group_dir "$group") || exit 1
   local count=0
 
   for link in "$SKILLS_DIR"/*/; do
     [ -L "${link%/}" ] || continue
     local target
     target=$(readlink "${link%/}")
-    if [[ "$target" == *"$src_dir"* ]]; then
+    if [[ "$target" == *".library/skills/$group/"* ]]; then
       rm "${link%/}"
       count=$((count + 1))
     fi
@@ -77,18 +93,17 @@ disable_group() {
   echo "Disabled $count $group skills (symlinks removed)"
 }
 
+# ─── Count helpers ─────────────────────────────────────────────────────────────
 # Count active symlinks for a group
 count_active() {
   local group="$1"
-  local src_dir
-  src_dir=$(group_dir "$group")
   local count=0
 
   for link in "$SKILLS_DIR"/*/; do
     [ -L "${link%/}" ] || continue
     local target
     target=$(readlink "${link%/}")
-    if [[ "$target" == *"$src_dir"* ]]; then
+    if [[ "$target" == *".library/skills/$group/"* ]]; then
       count=$((count + 1))
     fi
   done
@@ -99,7 +114,7 @@ count_active() {
 count_total() {
   local group="$1"
   local src_dir
-  src_dir=$(group_dir "$group")
+  src_dir=$(group_dir "$group") || { echo "0"; return; }
   local count=0
   for d in "$src_dir"/*/; do
     [ -d "$d" ] && count=$((count + 1))
@@ -107,23 +122,29 @@ count_total() {
   echo "$count"
 }
 
+# ─── List ──────────────────────────────────────────────────────────────────────
 # List what's active vs available
 list_groups() {
   echo ""
   echo "=== Skill Library ==="
-  for group in marketing; do
-    local active total
-    active=$(count_active "$group")
-    total=$(count_total "$group")
-    local status="off"
-    if [ "$active" -gt 0 ]; then
-      status="ON"
-    fi
-    printf "  %-12s %s active / %s total  [%s]\n" "$group:" "$active" "$total" "$status"
-  done
+  if [ ${#ALL_GROUPS[@]} -eq 0 ]; then
+    echo "  (no skill groups registered — add groups to ALL_GROUPS in this script)"
+  else
+    for group in "${ALL_GROUPS[@]}"; do
+      local active total
+      active=$(count_active "$group")
+      total=$(count_total "$group")
+      local status="off"
+      if [ "$active" -gt 0 ]; then
+        status="ON"
+      fi
+      printf "  %-12s %s active / %s total  [%s]\n" "$group:" "$active" "$total" "$status"
+    done
+  fi
   echo ""
 }
 
+# ─── Main ──────────────────────────────────────────────────────────────────────
 GROUP="${1:-}"
 ACTION="${2:-}"
 
@@ -133,13 +154,23 @@ if [ "$GROUP" = "list" ] || [ -z "$GROUP" ]; then
 fi
 
 if [ -z "$ACTION" ]; then
-  echo "Usage: bash scripts/toggle-skills.sh <marketing|list> <on|off>"
+  echo "Usage: bash scripts/toggle-skills.sh <group|list> <on|off>"
+  echo ""
+  if [ ${#ALL_GROUPS[@]} -gt 0 ]; then
+    echo "Available groups: ${ALL_GROUPS[*]}"
+  else
+    echo "No groups registered yet. Add groups to ALL_GROUPS in this script."
+  fi
   exit 1
 fi
 
-src_dir=$(group_dir "$GROUP")
-if [ -z "$src_dir" ] || [ ! -d "$src_dir" ]; then
-  echo "Unknown group: $GROUP (use marketing or list)"
+if ! group_dir "$GROUP" > /dev/null 2>&1; then
+  echo "Unknown group: $GROUP"
+  if [ ${#ALL_GROUPS[@]} -gt 0 ]; then
+    echo "Available groups: ${ALL_GROUPS[*]}"
+  else
+    echo "No groups registered yet. Add groups to ALL_GROUPS in this script."
+  fi
   exit 1
 fi
 

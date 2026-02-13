@@ -4,47 +4,52 @@
 # Symlinks:       .claude/commands/<file>.md → ../../.library/commands/<group>/<file>.md
 #
 # Usage:
-#   bash scripts/toggle-commands.sh bmad on
-#   bash scripts/toggle-commands.sh bmad off
-#   bash scripts/toggle-commands.sh speckit on
-#   bash scripts/toggle-commands.sh speckit off
-#   bash scripts/toggle-commands.sh other on
-#   bash scripts/toggle-commands.sh other off
+#   bash scripts/toggle-commands.sh project on
+#   bash scripts/toggle-commands.sh project off
 #   bash scripts/toggle-commands.sh list
 
 set -uo pipefail
 
-COMMANDS_DIR=".claude/commands"
-LIBRARY_DIR=".library/commands"
-GITIGNORE=".gitignore"
+# ─── Resolve paths from repo root ─────────────────────────────────────────────
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+COMMANDS_DIR="$REPO_ROOT/.claude/commands"
+LIBRARY_DIR="$REPO_ROOT/.library/commands"
+GITIGNORE="$REPO_ROOT/.gitignore"
 
 mkdir -p "$COMMANDS_DIR"
+
+# ─── Group Registry ─── Add your groups here ──────────────────────────────────
+# Each group maps to a subdirectory under .library/commands/
+# The "project" group holds toggle/organize commands and should always be enabled.
+ALL_GROUPS=(project)
 
 # Map group name to library subdirectory
 group_dir() {
   case "$1" in
-    bmad)    echo "$LIBRARY_DIR/bmad" ;;
-    speckit) echo "$LIBRARY_DIR/speckit" ;;
     project) echo "$LIBRARY_DIR/project" ;;
-    other)   echo "$LIBRARY_DIR/other" ;;
-    *)       echo "" ;;
+    *)
+      echo "Unknown group: $1" >&2
+      return 1
+      ;;
   esac
 }
 
+# ─── Gitignore ─────────────────────────────────────────────────────────────────
 # Ensure .claude/commands is in .gitignore (permanently ignored)
 ensure_gitignore() {
-  for entry in ".claude/commands" ".claude/commands-disabled"; do
+  for entry in ".claude/commands/" ".claude/skills/"; do
     if ! grep -qxF "$entry" "$GITIGNORE" 2>/dev/null; then
       echo "$entry" >> "$GITIGNORE"
     fi
   done
 }
 
+# ─── Enable ────────────────────────────────────────────────────────────────────
 # Create symlinks for all files in a library group
 enable_group() {
   local group="$1"
   local src_dir
-  src_dir=$(group_dir "$group")
+  src_dir=$(group_dir "$group") || exit 1
   local count=0
 
   for f in "$src_dir"/*.md; do
@@ -52,7 +57,7 @@ enable_group() {
     local basename
     basename=$(basename "$f")
     local link="$COMMANDS_DIR/$basename"
-    local target="../../$src_dir/$basename"
+    local target="../../.library/commands/$group/$basename"
 
     # Skip if symlink already exists and points to the right place
     if [ -L "$link" ]; then
@@ -67,11 +72,12 @@ enable_group() {
   echo "Enabled $count $group commands (symlinked)"
 }
 
+# ─── Disable ───────────────────────────────────────────────────────────────────
 # Remove symlinks that point into a library group
 disable_group() {
   local group="$1"
   local src_dir
-  src_dir=$(group_dir "$group")
+  src_dir=$(group_dir "$group") || exit 1
   local count=0
 
   for link in "$COMMANDS_DIR"/*.md; do
@@ -79,7 +85,7 @@ disable_group() {
     local target
     target=$(readlink "$link")
     # Check if this symlink points into the group's library dir
-    if [[ "$target" == *"$src_dir"* ]]; then
+    if [[ "$target" == *".library/commands/$group/"* ]]; then
       rm "$link"
       count=$((count + 1))
     fi
@@ -87,18 +93,17 @@ disable_group() {
   echo "Disabled $count $group commands (symlinks removed)"
 }
 
+# ─── Count helpers ─────────────────────────────────────────────────────────────
 # Count active symlinks for a group
 count_active() {
   local group="$1"
-  local src_dir
-  src_dir=$(group_dir "$group")
   local count=0
 
   for link in "$COMMANDS_DIR"/*.md; do
     [ -L "$link" ] || continue
     local target
     target=$(readlink "$link")
-    if [[ "$target" == *"$src_dir"* ]]; then
+    if [[ "$target" == *".library/commands/$group/"* ]]; then
       count=$((count + 1))
     fi
   done
@@ -109,15 +114,16 @@ count_active() {
 count_total() {
   local group="$1"
   local src_dir
-  src_dir=$(group_dir "$group")
+  src_dir=$(group_dir "$group") || { echo "0"; return; }
   ls "$src_dir"/*.md 2>/dev/null | wc -l | tr -d ' '
 }
 
+# ─── List ──────────────────────────────────────────────────────────────────────
 # List what's active vs available
 list_groups() {
   echo ""
   echo "=== Command Library ==="
-  for group in bmad speckit project other; do
+  for group in "${ALL_GROUPS[@]}"; do
     local active total
     active=$(count_active "$group")
     total=$(count_total "$group")
@@ -125,11 +131,12 @@ list_groups() {
     if [ "$active" -gt 0 ]; then
       status="ON"
     fi
-    printf "  %-10s %s active / %s total  [%s]\n" "$group:" "$active" "$total" "$status"
+    printf "  %-12s %s active / %s total  [%s]\n" "$group:" "$active" "$total" "$status"
   done
   echo ""
 }
 
+# ─── Main ──────────────────────────────────────────────────────────────────────
 GROUP="${1:-}"
 ACTION="${2:-}"
 
@@ -139,13 +146,15 @@ if [ "$GROUP" = "list" ] || [ -z "$GROUP" ]; then
 fi
 
 if [ -z "$ACTION" ]; then
-  echo "Usage: bash scripts/toggle-commands.sh <bmad|speckit|other|list> <on|off>"
+  echo "Usage: bash scripts/toggle-commands.sh <group|list> <on|off>"
+  echo ""
+  echo "Available groups: ${ALL_GROUPS[*]}"
   exit 1
 fi
 
-src_dir=$(group_dir "$GROUP")
-if [ -z "$src_dir" ] || [ ! -d "$src_dir" ]; then
-  echo "Unknown group: $GROUP (use bmad, speckit, other, or list)"
+if ! group_dir "$GROUP" > /dev/null 2>&1; then
+  echo "Unknown group: $GROUP"
+  echo "Available groups: ${ALL_GROUPS[*]}"
   exit 1
 fi
 
