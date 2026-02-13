@@ -168,13 +168,38 @@ bash scripts/toggle-skills.sh list
   marketing:   25 active / 25 total  [ON]
 ```
 
-### How the scripts work internally
+### `scripts/organize-library.sh`
+
+Detects real (non-symlink) files dropped into `.claude/` and organizes them into `.library/`.
+
+```bash
+# Scan for unorganized items
+bash scripts/organize-library.sh scan
+
+# Move a command into a group
+bash scripts/organize-library.sh move-command new-tool.md other
+
+# Move a skill into a group
+bash scripts/organize-library.sh move-skill my-skill marketing
+
+# Register a brand new group
+bash scripts/organize-library.sh register-command-group my-group
+bash scripts/organize-library.sh register-skill-group my-group
+```
+
+### How the toggle scripts work internally
 
 1. **Enable**: Iterates over files/directories in `.library/commands/<group>/` (or `.library/skills/<group>/`), creates symlinks in `.claude/commands/` (or `.claude/skills/`) pointing back to the library
 2. **Disable**: Finds symlinks in `.claude/commands/` (or `.claude/skills/`) that point into the group's library directory and removes them
 3. **List**: Counts active symlinks vs total available for each group and displays status
 4. **Gitignore**: Ensures `.claude/commands` and `.claude/skills` are in `.gitignore`
 5. **Cleanup**: Removes macOS `._*` resource fork files (useful on ExFAT drives)
+
+### How the organize script works internally
+
+1. **Scan**: Tests each file/directory in `.claude/` with `-L` (is symlink?) — reports anything that's a real file
+2. **Move**: `mv` the item to `.library/<type>/<group>/`, then `ln -s` a relative symlink in its place
+3. **Register**: `mkdir` the group directory, then `sed` a new case into `group_dir()` in the toggle script
 
 ---
 
@@ -204,6 +229,79 @@ Same pattern for speckit commands.
 ### `/toggle-skills [on|off|list]`
 
 Same pattern for skill groups.
+
+### `/organize-library`
+
+Detects real (non-symlink) files dropped into `.claude/commands/` or `.claude/skills/`, then interactively moves them into `.library/` with proper symlinks. See the Organize Script section below.
+
+---
+
+## Organize Script
+
+### The problem it solves
+
+When you download, create, or receive a new command or skill file, it lands as a **real file** in `.claude/commands/` or `.claude/skills/`. That breaks the symlink pattern:
+
+- It's not stored in `.library/` (so it's not in git)
+- It won't survive a toggle off/on cycle (real files get deleted when `disable_group` removes by symlink check)
+- It creates git noise if `.claude/` directories aren't fully gitignored
+
+### `scripts/organize-library.sh`
+
+Five subcommands:
+
+```bash
+# Scan — find unorganized real files
+bash scripts/organize-library.sh scan
+
+# Move a command file into a group
+bash scripts/organize-library.sh move-command new-workflow.md my-workflows
+
+# Move a skill directory into a group
+bash scripts/organize-library.sh move-skill seo-audit marketing
+
+# Register a new command group (creates dir + updates toggle-commands.sh)
+bash scripts/organize-library.sh register-command-group my-workflows
+
+# Register a new skill group (creates dir + updates toggle-skills.sh)
+bash scripts/organize-library.sh register-skill-group devops
+```
+
+### How `scan` works
+
+1. Iterates over `.claude/commands/*.md` — skips symlinks (`-L` test), reports real files
+2. Iterates over `.claude/skills/*/` — skips symlink directories, reports real directories
+3. Ignores `._*` macOS resource fork files
+4. Lists available groups from `.library/commands/` and `.library/skills/`
+
+### How `move-command` works
+
+1. Validates the file exists and is not already a symlink
+2. Validates the target group directory exists in `.library/commands/`
+3. Checks for name collisions in the destination
+4. `mv` the file to `.library/commands/<group>/`
+5. `ln -s` a relative symlink in `.claude/commands/` pointing back to `.library/`
+
+### How `register-*-group` works
+
+1. Creates the `.library/commands/<name>/` (or `.library/skills/<name>/`) directory
+2. Uses `sed` to insert a new case into the `group_dir()` function in the toggle script
+3. Warns that you may need to manually add the group to `list_groups()` if it uses a hardcoded loop
+
+### The `/organize-library` slash command
+
+The template (`templates/organize-library.md`) instructs the AI to:
+
+1. Run `scan` to detect unorganized items
+2. For each item, ask the user which group to file it under
+3. Register new groups if needed
+4. Move items and create symlinks
+5. Enable the group with the toggle script
+6. Run a final `scan` to confirm everything is organized
+
+### Organize Library skill
+
+The template (`templates/organize-library-skill/`) provides an optional skill that gives the AI deep context about the library pattern. Place it in `.library/skills/<group>/organize-library/` and symlink it when you want the AI to understand the library system at a deeper level.
 
 ---
 
@@ -464,11 +562,95 @@ disable_group() {
 }
 ```
 
+## Reference Implementation: `organize-library.sh`
+
+```bash
+#!/usr/bin/env bash
+# Detect and organize real files dropped into .claude/
+# Moves them into .library/ and creates symlinks in their place.
+
+set -euo pipefail
+
+LIBRARY_CMD_DIR=".library/commands"
+LIBRARY_SKL_DIR=".library/skills"
+CLAUDE_CMD_DIR=".claude/commands"
+CLAUDE_SKL_DIR=".claude/skills"
+
+# Scan for real (non-symlink) files in .claude/ directories
+scan() {
+  local found=0
+  echo "Scanning for unorganized items..."
+
+  if [[ -d "$CLAUDE_CMD_DIR" ]]; then
+    for file in "$CLAUDE_CMD_DIR"/*.md; do
+      [[ -f "$file" ]] || continue
+      [[ -L "$file" ]] && continue
+      local name=$(basename "$file")
+      [[ "$name" == "._"* ]] && continue
+      echo "  [command] $name (real file)"
+      found=$((found + 1))
+    done
+  fi
+
+  if [[ -d "$CLAUDE_SKL_DIR" ]]; then
+    for dir in "$CLAUDE_SKL_DIR"/*/; do
+      [[ -d "$dir" ]] || continue
+      [[ -L "${dir%/}" ]] && continue
+      local name=$(basename "$dir")
+      [[ "$name" == "._"* ]] && continue
+      echo "  [skill]   $name/ (real directory)"
+      found=$((found + 1))
+    done
+  fi
+
+  echo "$found unorganized item(s) found"
+}
+
+# Move a command file into .library/ and create symlink
+move_command() {
+  local file="$1" group="$2"
+  mv "$CLAUDE_CMD_DIR/$file" "$LIBRARY_CMD_DIR/$group/$file"
+  ln -s "../../.library/commands/$group/$file" "$CLAUDE_CMD_DIR/$file"
+}
+
+# Move a skill directory into .library/ and create symlink
+move_skill() {
+  local name="$1" group="$2"
+  mv "$CLAUDE_SKL_DIR/$name" "$LIBRARY_SKL_DIR/$group/$name"
+  ln -s "../../.library/skills/$group/$name" "$CLAUDE_SKL_DIR/$name"
+}
+
+# Register a new group in a toggle script's group_dir() function
+register_command_group() {
+  local name="$1"
+  mkdir -p "$LIBRARY_CMD_DIR/$name"
+  # Insert case entry before the wildcard in toggle-commands.sh
+  sed -i '' "s|^\(    \*) .*echo.*\)|    $name) echo \"\$LIBRARY_DIR/$name\" ;;\n\1|" \
+    scripts/toggle-commands.sh
+}
+```
+
+The full version (in `scripts/organize-library.sh`) adds error handling, duplicate detection, and a `register-skill-group` subcommand.
+
 ---
 
 ## Adding New Groups
 
-### New command group
+### Automated (via organize script)
+
+```bash
+# Register a new command group — creates dir + updates toggle-commands.sh
+bash scripts/organize-library.sh register-command-group my-group
+
+# Register a new skill group — creates dir + updates toggle-skills.sh
+bash scripts/organize-library.sh register-skill-group my-group
+```
+
+**Note**: The `register` commands update `group_dir()` automatically. You may still need to add the group to `list_groups()` manually if it uses a hardcoded loop.
+
+### Manual
+
+#### New command group
 
 1. Create the directory: `mkdir -p .library/commands/my-group/`
 2. Add your `.md` command files there
@@ -479,7 +661,7 @@ disable_group() {
 4. Add `my-group` to the `list_groups()` loop
 5. Optionally create a `/toggle-my-group` slash command in `.library/commands/project/`
 
-### New skill group
+#### New skill group
 
 1. Create the directory: `mkdir -p .library/skills/my-group/`
 2. Add your skill directories (each with a `SKILL.md`)
@@ -545,4 +727,9 @@ This system evolved through several iterations:
 | Enable marketing skills | `bash scripts/toggle-skills.sh marketing on` |
 | Disable marketing skills | `bash scripts/toggle-skills.sh marketing off` |
 | List all statuses | `bash scripts/toggle-commands.sh list && bash scripts/toggle-skills.sh list` |
-| Via slash commands | `/toggle-bmad on`, `/toggle-speckit off`, `/toggle-skills on` |
+| Scan for unorganized files | `bash scripts/organize-library.sh scan` |
+| Move command to group | `bash scripts/organize-library.sh move-command file.md group` |
+| Move skill to group | `bash scripts/organize-library.sh move-skill skill-name group` |
+| Register new command group | `bash scripts/organize-library.sh register-command-group name` |
+| Register new skill group | `bash scripts/organize-library.sh register-skill-group name` |
+| Via slash commands | `/toggle-bmad on`, `/toggle-speckit off`, `/toggle-skills on`, `/organize-library` |

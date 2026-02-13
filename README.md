@@ -60,9 +60,16 @@ Instead of dumping every command and skill into the AI's watched directories, yo
 
 .claude/commands/            <-- gitignored, symlinks only
 .claude/skills/              <-- gitignored, symlinks only
+
+scripts/
+├── toggle-commands.sh       <-- enable/disable command groups
+├── toggle-skills.sh         <-- enable/disable skill groups
+└── organize-library.sh      <-- detect + organize dropped files
 ```
 
 Toggle a group on? Symlinks appear. Toggle it off? Symlinks vanish. Zero files move. Zero git diffs. The AI only loads what's linked.
+
+Drop a new command or skill into `.claude/`? The organize script detects it, moves it to `.library/`, and creates the symlink -- keeping the pattern intact without manual work.
 
 ---
 
@@ -161,11 +168,22 @@ Run: `bash scripts/toggle-commands.sh my-workflows $ARGUMENTS`
 
 Now you can type `/toggle-my-workflows on` or `/toggle-my-workflows off` right inside your AI agent.
 
-### 5. Restart and go
+### 5. (Optional) Set up the organizer
+
+If you want the "drop and organize" workflow, copy `scripts/organize-library.sh` into your project and the `templates/organize-library.md` command into `.library/commands/project/`:
+
+```bash
+cp scripts/organize-library.sh your-project/scripts/
+cp templates/organize-library.md your-project/.library/commands/project/
+```
+
+Now when someone drops a new `.md` command or skill directory directly into `.claude/`, you can run `/organize-library` to detect it, pick a group, and file it properly.
+
+### 6. Restart and go
 
 Run `/clear` or restart your session. Only the symlinked commands/skills load.
 
-> **Want the full details?** See [GUIDE.md](GUIDE.md) for the complete directory structure, reference implementations of both toggle scripts, troubleshooting, and instructions for adding new groups.
+> **Want the full details?** See [GUIDE.md](GUIDE.md) for the complete directory structure, reference implementations of all three scripts, the organize workflow, troubleshooting, and instructions for adding new groups.
 
 ---
 
@@ -215,6 +233,37 @@ You probably don't need this if:
 
 - You have fewer than 10 commands and they're all relevant to every session
 - You only use one workflow tool set
+
+---
+
+## The Organize Workflow
+
+The toggle scripts manage what's active. But what about new files?
+
+When you download a new command or skill -- from a teammate, a GitHub repo, or an AI-generated session -- it lands as a **real file** in `.claude/commands/` or `.claude/skills/`. That breaks the pattern: it's not in `.library/`, it's not symlinked, and it won't survive a toggle cycle.
+
+The `organize-library.sh` script fixes this:
+
+```bash
+# Detect real files that aren't part of the library yet
+bash scripts/organize-library.sh scan
+
+# Output:
+#   [command] new-workflow.md (real file)
+#   [skill]   seo-audit/ (real directory)
+#   2 unorganized item(s) found
+
+# Move into a group and create the symlink
+bash scripts/organize-library.sh move-command new-workflow.md my-workflows
+bash scripts/organize-library.sh move-skill seo-audit marketing
+
+# Need a new group? Register it first
+bash scripts/organize-library.sh register-command-group my-workflows
+```
+
+Or use the `/organize-library` slash command to let the AI guide you through it interactively.
+
+The included `templates/organize-library-skill/` directory provides a ready-made skill that gives the AI deep context about the library pattern -- useful when it needs to help organize files or troubleshoot symlink issues.
 
 ---
 
