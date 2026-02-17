@@ -29,7 +29,7 @@ discover_groups() {
     [[ "$name" == "._"* ]] && continue
     groups+=("$name")
   done
-  echo "${groups[@]}"
+  echo "${groups[@]+"${groups[@]}"}"
 }
 
 group_dir() {
